@@ -83,20 +83,24 @@ function App() {
       }
     }
     
-    // Then check for conflicts
-    // Note: conflicts state may not be updated yet, so we're checking both
-    if (conflicts.length > 0) {
+    // Then check for conflicts by calculating them directly from the grid
+    // This avoids race conditions with the conflicts state
+    const currentConflicts = getConflicts(copyGrid(grid));
+    if (currentConflicts.length > 0) {
       return false;
     }
     
     return true;
-  }, [grid, conflicts, isSolved]);
+  }, [grid, isSolved]);
 
   // Update conflicts and check solution state
   // Use useRef to store previous grid state to avoid unnecessary updates
   const prevGridRef = useRef<SudokuGrid | null>(null);
   
   useEffect(() => {
+    // Don't update anything if the game is already solved
+    if (isSolved) return;
+    
     // Only update conflicts if the grid has actually changed
     // Compare current grid with previous grid to avoid unnecessary updates
     const gridChanged = !prevGridRef.current || JSON.stringify(grid) !== JSON.stringify(prevGridRef.current);
@@ -112,7 +116,8 @@ function App() {
       // Check if puzzle is solved - only run this check if no conflicts exist
       if (newConflicts.length === 0) {
         const solved = checkSolved();
-        if (solved && !isSolved) {
+        if (solved) {
+          // Set solved state and stop the timer
           setIsSolved(true);
           setTimerActive(false);
           
@@ -159,28 +164,26 @@ function App() {
     }
   }, [grid, checkSolved, isSolved, currentUser, difficulty, timeElapsed, movesCount, hintsUsed]);
 
-  // Handle starting a new game - with specific handling for solved state
+  // Handle starting a new game - with improved handling for all states
   const handleNewGame = useCallback(() => {
     setIsLoading(true);
     console.log("Starting new game with difficulty:", difficulty, "isSolved:", isSolved);
     
-    // Force a state reset before creating new grid to break dependency cycles
-    if (isSolved) {
-      console.log("Game was solved, doing force reset first");
-      // Immediately clear solved state to prevent update loops
-      setIsSolved(false);
-      // Reset other state that might block updates
-      setSelectedCell(null);
-      setTimerActive(false);
-      setSolveAnimation(false);
-      // Create an empty grid temporarily to force re-renders
-      const emptyGrid = createEmptyGrid();
-      setGrid(emptyGrid);
-      setPresetCells(Array(9).fill(null).map(() => Array(9).fill(false)));
-      setConflicts([]);
-    }
+    // First, clear all state immediately to ensure a clean slate
+    setIsSolved(false);
+    setTimerActive(false);
+    setSolveAnimation(false);
+    setSelectedCell(null);
     
-    // Wait for state reset to complete
+    // Create empty grid temporarily to force UI reset and break render dependencies
+    setGrid(createEmptyGrid());
+    setPresetCells(Array(9).fill(null).map(() => Array(9).fill(false)));
+    setConflicts([]);
+    
+    // Force prevGridRef reset to ensure grid comparison logic works correctly
+    prevGridRef.current = null;
+    
+    // Use a timeout to ensure the state reset is processed before creating a new game
     setTimeout(() => {
       try {
         // Get a new grid
@@ -203,38 +206,31 @@ function App() {
           }
         }
         
-        // Reset all game state in clear order to avoid race conditions
-        setSelectedCell(null);
-        setConflicts([]);
+        // Reset all game stats
         setSolveProgress(0);
-        setSolveAnimation(false);
-        setIsSolved(false); // Explicitly ensure solved state is reset
         setTimeElapsed(0);
         setMovesCount(0);
         setHintsUsed(0);
         
-        // Assign grid and related state
-        setOriginalGrid(copyGrid(newGrid));
-        setGrid(newGrid);
+        // Assign grid and related state - create a deep copy to ensure no references
+        const safeGrid = copyGrid(newGrid);
+        setOriginalGrid(copyGrid(safeGrid)); // Store original copy for reset function
+        setGrid(safeGrid);
         setPresetCells(newPresetCells);
         
-        // Start the timer after state updates
+        // Start the timer with a delay to ensure state has settled
         setTimeout(() => {
-          // Double check we're still not in a solved state
-          if (!isSolved) {
-            setTimerActive(true);
-          }
+          setTimerActive(true);
+          setIsLoading(false);
+          console.log("New game started successfully");
         }, 100);
-        
-        console.log("New game started successfully");
       } catch (error) {
         console.error('Error starting new game:', error);
         setGlobalError("Failed to start new game: " + (error instanceof Error ? error.message : String(error)));
-      } finally {
         setIsLoading(false);
       }
-    }, 50); // Short delay to ensure state resets properly
-  }, [difficulty, isSolved]);
+    }, 100); // Longer delay to ensure state resets properly
+  }, [difficulty]);
 
   // Initialize game on first load
   useEffect(() => {
@@ -439,25 +435,29 @@ function App() {
     setIsLoading(true);
     
     try {
-      // Force a more aggressive reset when game is solved
-      if (isSolved) {
-        console.log("Game was solved, performing force reset");
-        // First reset the solved state flag to break any potential update loops
-        setIsSolved(false);
-        
-        // Stop timer immediately
-        setTimerActive(false);
-        
-        // Temporarily set an empty grid to break any state dependencies
-        setGrid(createEmptyGrid());
-        
-        // Then use a short timeout to ensure state propagation before setting the original grid
-        setTimeout(() => {
-          // Reset core game stats and flags
-          setSelectedCell(null);
-          setConflicts([]);
-          setSolveProgress(0);
-          setSolveAnimation(false);
+      // Use a single reset approach that works for both solved and unsolved states
+      console.log("Resetting game with forceful approach (isSolved:", isSolved, ")");
+      
+      // First reset the state flags to break any potential update loops
+      setIsSolved(false);
+      setTimerActive(false);
+      
+      // Immediately clear the grid to force UI reset and break dependencies
+      setGrid(createEmptyGrid());
+      
+      // Reset all states immediately
+      setSelectedCell(null);
+      setConflicts([]);
+      setSolveProgress(0);
+      setSolveAnimation(false);
+      
+      // Force prevGridRef reset to ensure grid comparison logic works correctly
+      prevGridRef.current = null;
+      
+      // Use setTimeout to ensure state changes are applied before proceeding
+      setTimeout(() => {
+        try {
+          // Reset all game stats
           setTimeElapsed(0);
           setMovesCount(0);
           setHintsUsed(0);
@@ -465,40 +465,21 @@ function App() {
           // Make a fresh deep copy of the original grid
           const freshGrid = copyGrid(originalGrid);
           
-          // Set the grid and start the timer
+          // Apply the grid and restart the timer
           setGrid(freshGrid);
           
-          // Start the timer after a short delay
+          // Give a short delay before starting the timer and finishing loading
           setTimeout(() => {
             setTimerActive(true);
             setIsLoading(false);
+            console.log("Game reset successfully with deep reset");
           }, 50);
-          
-          console.log("Solved game reset successfully with deep reset");
-        }, 50);
-      } else {
-        // Standard reset for non-solved games
-        // Reset all game state in a clear order
-        setSelectedCell(null);
-        setConflicts([]);
-        setSolveProgress(0);
-        setSolveAnimation(false);
-        setTimeElapsed(0);
-        setMovesCount(0);
-        setHintsUsed(0);
-        
-        // Make a fresh deep copy of the original grid
-        const freshGrid = copyGrid(originalGrid);
-        setGrid(freshGrid);
-        
-        // Start the timer after a short delay
-        setTimeout(() => {
-          setTimerActive(true);
+        } catch (error) {
+          console.error("Error during second phase of reset:", error);
+          setGlobalError("Failed during reset: " + (error instanceof Error ? error.message : String(error)));
           setIsLoading(false);
-        }, 50);
-        
-        console.log("Game reset successfully");
-      }
+        }
+      }, 100);
     } catch (error) {
       console.error('Error resetting game:', error);
       setGlobalError("Failed to reset game: " + (error instanceof Error ? error.message : String(error)));

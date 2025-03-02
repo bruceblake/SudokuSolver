@@ -14,13 +14,17 @@ A modern, interactive Sudoku puzzle game and solver built with React, TypeScript
 - ⏱️ Track time, moves, and hints used
 - 🎨 Modern UI with smooth animations
 - 📱 Responsive design for desktop and mobile
+- 🌓 Dark/Light Theme support
+- 🏆 Leaderboard to track best performances
+- 🔐 User authentication for saving progress
 
 ## Technology Stack
 
-- **React 19** - Latest version of the popular UI library
+- **React 18** - Modern UI library for building interactive interfaces
 - **TypeScript** - For type safety and better developer experience
 - **Vite** - Fast, modern frontend build tool
 - **Tailwind CSS** - Utility-first CSS framework for styling
+- **Firebase** - Authentication and database for leaderboard functionality
 
 ## How It Works
 
