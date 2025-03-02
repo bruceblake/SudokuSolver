@@ -2,7 +2,7 @@
 
 A modern, interactive Sudoku puzzle game and solver built with React, TypeScript, and Tailwind CSS. Play Sudoku at different difficulty levels and leverage advanced backtracking algorithms to solve challenging puzzles.
 
-![Sudoku Solver Screenshot](https://placehold.co/800x600/f8fafc/1e293b?text=Sudoku+Solver+Screenshot)
+![Sudoku Solver Screenshot](https://github.com/user-attachments/assets/de101abd-8816-4b2d-a49f-9e049209c526)
 
 ## Features
 
